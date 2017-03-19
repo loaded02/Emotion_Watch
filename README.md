@@ -1,13 +1,12 @@
 # Emotion Watch
-    Emotion Tracker by Moritz Hilberg
 
- based on Mediation Trainer by Collin Cunningham and
- based on Pulse Sensor Amped 1.4 by Joel Murphy and Yury Gitman http://www.pulsesensor.com and
+ based on Mediation Trainer by Collin Cunningham and  
+ based on Pulse Sensor Amped 1.4 by Joel Murphy and Yury Gitman http://www.pulsesensor.com and  
  based on Arduino and Galvanic Skin Response (GSR) Sensor by hypnotistas
 
  Uses a Circuit Playground board's built-in LEDs to diplay mood according to sensor input
  
- The [changelog](doc/CHANGELOG.md) provides you with information about important changes.
+ The [ChangeLog](doc/CHANGELOG.md) provides you with information about important changes.
  
  The [DevEnvironment](doc/HOWTO.md) explains setup of device during development.
  
