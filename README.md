@@ -7,9 +7,9 @@
 
  Uses a Circuit Playground board's built-in LEDs to diplay mood according to sensor input
  
- The [changelog](doc/changelog.md) provides you with information about important changes.
+ The [changelog](doc/CHANGELOG.md) provides you with information about important changes.
  
- The [howto](doc/howto.md) explains how to use the device.
+ The [DevEnvironment](doc/HOWTO.md) explains setup of device during development.
  
 **Hardware requirements:**
  - Adafruit Circuit Playground https://www.adafruit.com/products/3000
