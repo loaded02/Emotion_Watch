@@ -8,3 +8,11 @@ CircuitPlayground Closeup
 
 CircuitPlayground with GsrSensor and PulseSensor
 
+## Animation from Bitmap
+[Using Bitmaps to Animate NeoPixels on Circuit Playground](https://learn.adafruit.com/circuit-playground-neoanim-using-bitmaps-to-animate-neopixels/coding-the-circuit-playground)
+
+Generate Header file from Bitmap:
+```
+python convert.py neoAnim.png > neoAnim.h
+```
+

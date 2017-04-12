@@ -4,7 +4,7 @@
 ### Features
 - NeoPixel 0 and 9 show Emotion based on Gsr Sensor
 - NeoPixel 1 to 8 show interactions based on emotion level. A new interaction is indicated by tone.
-- LeftButton (#4) starts baseline calculation. Start and Stop indicated by custom signal.
+- LeftButton (#4) starts baseline calculation. Start and Stop indicated by custom signal. Any pushbutton stops Calculation.
 - Switch turns sound on and off ( mute when switch is on - side (right))
 
 ### BREAKING CHANGES

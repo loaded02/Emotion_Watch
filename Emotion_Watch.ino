@@ -4,6 +4,8 @@
  based on Mediation Trainer by Collin Cunningham and
  based on Pulse Sensor Amped 1.4 by Joel Murphy and Yury Gitman http://www.pulsesensor.com and
  based on Arduino and Galvanic Skin Response (GSR) Sensor by hypnotistas
+ based on Using Bitmaps to Animate NeoPixels on Circuit Playground https://learn.adafruit.com/circuit-playground-neoanim-using-bitmaps-to-animate-neopixels
+ 
 
  Uses a Circuit Playground board's built-in LEDs to diplay mood according to sensor input
 
@@ -28,10 +30,14 @@
 */
 
 #include <Adafruit_CircuitPlayground.h>
+#include "neoAnim.h" //this is the name of the animation derrived from the neoAnim.png bitmap file
+#include "neoAnim_beat.h"
 
 /*define block*/
 #define BASELINE_AVERAGE_TIME 60000 // interval for baseline calculation (ms)
 #define MOVE_THRESHOLD 1.3          // mess with this number to adjust motiondetection - lower number = more sensitive
+#define ANIMATION_TIME_LONG   400   // ms for animation duration
+#define ANIMATION_TIME_SHORT  300
 
 #define EMOTION_LEVEL_0       10  // Depression (Value is Percent of interval max - min)
 #define EMOTION_LEVEL_1       20  // Pessimistic
@@ -118,6 +124,13 @@ volatile int maxGsrSignal;
 float x, y, z;
 boolean inMotion;
 
+/*Animation Specific Variables*/
+uint16_t *pixelBaseAddr, // Address of active animation table
+         pixelLen,      // Number of pixels in active table
+         pixelIdx;      // Index of first pixel of current frame
+uint8_t  pixelFPS;      // Frames/second for active animation
+boolean  pixelLoop;     // If true, animation repeats
+uint32_t prev = 0; // Time of last NeoPixel refresh
 
 void setup() {
   Serial.begin(115200);             // we agree to talk fast!
@@ -179,6 +192,106 @@ void loop() {
   delay(20);                             //  take a break
 }
 
+// Begin playing a NeoPixel animation from a PROGMEM table
+void initAnimation(const uint16_t *addr, uint8_t fps, uint16_t bytes, boolean repeat) {
+  pixelBaseAddr = addr;
+  if(addr) {
+    pixelFPS    = fps;
+    pixelLen    = bytes / 2;
+    pixelLoop   = repeat; //if set to 'repeat' it'll loop, set to 0 to play once only
+    pixelIdx    = 0;
+  } else {
+    CircuitPlayground.strip.clear();
+  }
+}
+
+void playAnimationLong() {
+  uint32_t startTime = millis();
+  while (millis() - startTime < ANIMATION_TIME_LONG) {
+    uint32_t t;      // Current time in milliseconds
+    
+    // Until the next animation frame interval has elapsed...
+    while(((t = millis()) - prev) < (1000 / pixelFPS));
+    // Show LEDs rendered on prior pass.  It's done this way so animation timing
+    // is a bit more consistent (frame rendering time may vary slightly).
+    CircuitPlayground.strip.show();
+    
+    prev = t; // Save refresh time for next frame sync
+    
+    if(pixelBaseAddr) {
+      for(uint8_t i=0; i<10; i++) { // For each NeoPixel...
+        // Read pixel color from PROGMEM table
+        uint16_t rgb = pgm_read_word(&pixelBaseAddr[pixelIdx++]);
+        // Expand 16-bit color to 24 bits using gamma tables
+        // RRRRRGGGGGGBBBBB -> RRRRRRRR GGGGGGGG BBBBBBBB
+        CircuitPlayground.strip.setPixelColor(i,
+        pgm_read_byte(&gamma5[ rgb >> 11        ]),
+        pgm_read_byte(&gamma6[(rgb >>  5) & 0x3F]),
+        pgm_read_byte(&gamma5[ rgb        & 0x1F]));
+      }
+      if(pixelIdx >= pixelLen) { // End of animation table reached
+        if(pixelLoop) { // Repeat animation
+          pixelIdx = 0; // Reset index to start of table
+        } else {        // else switch off LEDs
+          initAnimation(NULL, neoAnimFPS, 0, false);
+        }
+      }
+    }
+  }
+}
+
+void playAnimationShort() {
+  uint32_t startTime = millis();
+  while (millis() - startTime < ANIMATION_TIME_SHORT) {
+    uint32_t t;      // Current time in milliseconds
+    
+    // Until the next animation frame interval has elapsed...
+    while(((t = millis()) - prev) < (1000 / pixelFPS));
+    // Show LEDs rendered on prior pass.  It's done this way so animation timing
+    // is a bit more consistent (frame rendering time may vary slightly).
+    CircuitPlayground.strip.show();
+    
+    prev = t; // Save refresh time for next frame sync
+    
+    if(pixelBaseAddr) {
+      for(uint8_t i=0; i<10; i++) { // For each NeoPixel...
+        // Read pixel color from PROGMEM table
+        uint16_t rgb = pgm_read_word(&pixelBaseAddr[pixelIdx++]);
+        // Expand 16-bit color to 24 bits using gamma tables
+        // RRRRRGGGGGGBBBBB -> RRRRRRRR GGGGGGGG BBBBBBBB
+        CircuitPlayground.strip.setPixelColor(i,
+        pgm_read_byte(&gamma7[ rgb >> 11        ]), // renaming gamma 5,6 to 7,8
+        pgm_read_byte(&gamma8[(rgb >>  5) & 0x3F]),
+        pgm_read_byte(&gamma7[ rgb        & 0x1F]));
+      }
+      if(pixelIdx >= pixelLen) { // End of animation table reached
+        if(pixelLoop) { // Repeat animation
+          pixelIdx = 0; // Reset index to start of table
+        } else {        // else switch off LEDs
+          initAnimation(NULL, neoAnimFPS, 0, false);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Custom Signal
+ * Used for start and end of Baseline Calculation
+ */
+void showSignal() {
+  /*sound*/
+  if (CircuitPlayground.slideSwitch()) { // sound if switch is on + side (left)
+    CircuitPlayground.playTone(500, 100);
+  }
+
+  /*neopixels from bitmap*/
+  CircuitPlayground.clearPixels();
+  initAnimation(neoAnimPixelData, neoAnimFPS, sizeof(neoAnimPixelData), false);
+  playAnimationLong();
+  CircuitPlayground.clearPixels();
+}
+
 void refreshLeds() {
   ledFadeToEmotions();
   ledFadeToInterventions();
@@ -188,7 +301,7 @@ void refreshLeds() {
 /**
  * detect motion
  */
- boolean moving() {
+boolean moving() {
   // Take a reading of accellerometer data
   x = CircuitPlayground.motionX() / 9.8; // m/s2 to G
   y = CircuitPlayground.motionY() / 9.8;
@@ -197,7 +310,7 @@ void refreshLeds() {
   //Serial.print("Accel X: "); Serial.print(x); Serial.print(" ");
   //Serial.print("Y: "); Serial.print(y);       Serial.print(" ");
   //Serial.print("Z: "); Serial.print(z);     Serial.print(" ");
- 
+  
   // Get the magnitude (length) of the 3 axis vector
   // http://en.wikipedia.org/wiki/Euclidean_vector#Length
   float d = sqrt(x * x + y * y + z * z);
@@ -210,36 +323,6 @@ void refreshLeds() {
     return true;
   }
   return false;
- }
-
-/**
- * signal if something changes
- */
-void showSignal() {
-  if (CircuitPlayground.slideSwitch()) { // sound if switch is on + side (left)
-    CircuitPlayground.playTone(500, 100);
-  }
-
-  CircuitPlayground.clearPixels();
-
-  for(int ii = 9; ii > 0 ; ii--) {
-    int prevBreathLED = ii;
-    int breathLED = --ii;
-    
-    for (int i = 1; i <= 8; i++) {
-      if (i == breathLED) { //leading breath LED
-        CircuitPlayground.strip.setPixelColor(i, CircuitPlayground.strip.Color(200, 200, 200));
-      }
-      else if (i == prevBreathLED) {  //chaser/fade LED
-        CircuitPlayground.strip.setPixelColor(i, CircuitPlayground.strip.Color(16, 16, 16));
-      }
-      else CircuitPlayground.strip.setPixelColor(i, CircuitPlayground.strip.Color(0, 0, 0));
-    }
-    CircuitPlayground.strip.show();
-    delay(150);
-  }
-
-  CircuitPlayground.clearPixels();
 }
 
 void calcBaseLine() {
@@ -251,17 +334,20 @@ void calcBaseLine() {
   int fadeRate = 255;
   
   while (now <= BASELINE_AVERAGE_TIME) {
+    if (CircuitPlayground.leftButton() || CircuitPlayground.rightButton()){
+      showSignal();
+      return;
+    }
+    
     sum += GsrSignal;
     index++;
 
     if (index % 70 == 0) {
-      //flash first and last pixels to represent pulse
-      fadeRate = 180;
-      CircuitPlayground.strip.setPixelColor(0, CircuitPlayground.strip.Color(fadeRate * 200, fadeRate * 200, fadeRate * 200));
-      CircuitPlayground.strip.setPixelColor(9, CircuitPlayground.strip.Color(fadeRate * 200, fadeRate * 200, fadeRate * 200));
-      CircuitPlayground.strip.show();
-    }
-    else {
+      //flash pixels to represent pulse
+      /*neopixels from bitmap*/
+      CircuitPlayground.clearPixels();
+      initAnimation(neoAnim_beatPixelData, neoAnim_beatFPS, sizeof(neoAnim_beatPixelData), false);
+      playAnimationShort();
       CircuitPlayground.clearPixels();
     }
     
@@ -277,6 +363,9 @@ void calcBaseLine() {
   //Serial.println(baseline);
 }
 
+/**
+ * NeoPixels 1 to 8 show Interventions
+ */
 void ledFadeToInterventions() {
   int intervention_led;
 
@@ -347,7 +436,7 @@ void ledFadeToEmotions() {
   
   float span = maxGsrSignal - minGsrSignal;
   int percent = ((GsrSignal - minGsrSignal) / span) * 100;
-
+  
   // TODO: inMotion ?? - HFR ??
   if (inMotion) {
     
@@ -361,7 +450,7 @@ void ledFadeToEmotions() {
   else {
     // regular Heartrate
   }
-
+  
   if (percent <= EMOTION_LEVEL_0) {
     color_emotion = EMOTION_COLOR_DEPRESSION;
   }
@@ -416,21 +505,21 @@ void ledFadeToEmotions() {
   else {
     color_emotion = COLOR_ERROR;
   }
-
-//  Serial.print("Baseline: ");
-//  Serial.println(baseline);
-//  Serial.print("maxGsrSignal: ");
-//  Serial.println(maxGsrSignal);
-//  Serial.print("minGsrSignal: ");
-//  Serial.println(minGsrSignal);
-//  Serial.print("GsrSignal: ");
-//  Serial.println(GsrSignal);
-//  Serial.print("span: ");
-//  Serial.println(span);
-//  Serial.print("percent: ");
-//  Serial.println(percent);
-//  Serial.print("color_emotion: ");
-//  Serial.println(color_emotion, HEX);
+  
+  //  Serial.print("Baseline: ");
+  //  Serial.println(baseline);
+  //  Serial.print("maxGsrSignal: ");
+  //  Serial.println(maxGsrSignal);
+  //  Serial.print("minGsrSignal: ");
+  //  Serial.println(minGsrSignal);
+  //  Serial.print("GsrSignal: ");
+  //  Serial.println(GsrSignal);
+  //  Serial.print("span: ");
+  //  Serial.println(span);
+  //  Serial.print("percent: ");
+  //  Serial.println(percent);
+  //  Serial.print("color_emotion: ");
+  //  Serial.println(color_emotion, HEX);
   
   CircuitPlayground.strip.setPixelColor(0, color_emotion);
   CircuitPlayground.strip.setPixelColor(9, color_emotion);

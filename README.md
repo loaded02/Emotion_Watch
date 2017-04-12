@@ -2,7 +2,9 @@
 
  based on Mediation Trainer by Collin Cunningham and  
  based on Pulse Sensor Amped 1.4 by Joel Murphy and Yury Gitman http://www.pulsesensor.com and  
- based on Arduino and Galvanic Skin Response (GSR) Sensor by hypnotistas
+ based on Arduino and Galvanic Skin Response (GSR) Sensor by hypnotistas  
+ based on Using Bitmaps to Animate NeoPixels on Circuit Playground https://learn.adafruit.com/circuit-playground-neoanim-using-bitmaps-to-animate-neopixels
+ 
 
  Uses a Circuit Playground board's built-in LEDs to diplay mood according to sensor input
  
