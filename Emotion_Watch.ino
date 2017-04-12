@@ -88,7 +88,7 @@
 #define INTERVENTION_COLOR_EXCERCISE        0x00FFFF
 
 uint32_t color_emotion;             // currently selected emotion color
-int last_intervention_led;
+int last_intervention_led, intervention_led;
 
 /*Pulse Sensor Specific Variables*/
 int pulsePin = 9;                 // Pulse Sensor purple wire connected to analog pin 9
@@ -145,7 +145,8 @@ void setup() {
   CircuitPlayground.setAccelRange(LIS3DH_RANGE_16_G);
   
   delay(50);                // wait until sensor GSR calms down
-  minGsrSignal = 200;       // seed extrem values
+  baseline = 150;           // seed baseline
+  minGsrSignal = 50;       // seed extrem values
   maxGsrSignal = 250;       // seed extrem values
 
   inMotion = false;
@@ -356,8 +357,8 @@ void calcBaseLine() {
   }
   
   baseline = sum / index;
-  minGsrSignal = baseline - 50;       // seed extrem values
-  maxGsrSignal = baseline + 50;       // seed extrem values
+  minGsrSignal = baseline - 100;       // seed extrem values
+  maxGsrSignal = baseline + 100;       // seed extrem values
   showSignal();
   //Serial.print("Baseline: ");
   //Serial.println(baseline);
@@ -367,7 +368,6 @@ void calcBaseLine() {
  * NeoPixels 1 to 8 show Interventions
  */
 void ledFadeToInterventions() {
-  int intervention_led;
 
   /*reset neopixels*/
   CircuitPlayground.strip.setPixelColor(1, COLOR_NON);
