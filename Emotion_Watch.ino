@@ -31,7 +31,7 @@
 
 /*define block*/
 #define BASELINE_AVERAGE_TIME 60000 // interval for baseline calculation (ms)
-#define MOVE_THRESHOLD 5            // mess with this number to adjust motiondetection - lower number = more sensitive
+#define MOVE_THRESHOLD 1.3          // mess with this number to adjust motiondetection - lower number = more sensitive
 
 #define EMOTION_LEVEL_0       10  // Depression (Value is Percent of interval max - min)
 #define EMOTION_LEVEL_1       20  // Pessimistic
@@ -87,9 +87,9 @@ int last_intervention_led;
 /*Pulse Sensor Specific Variables*/
 int pulsePin = 9;                 // Pulse Sensor purple wire connected to analog pin 9
 
-int fadeRatePulse = 0;                 // used to fade LED on with PWM on fadePin
+//int fadeRatePulse = 0;                 // used to fade LED on with PWM on fadePin
 boolean alive = false;     // we've detected a hearbeat in the last 1.5sec
-unsigned long lastAlive;
+uint32_t lastAlive;
 
 // Volatile Variables, used in the interrupt service routine!
 volatile int BPM;                   // int that holds raw Analog in 0. updated every 2mS
@@ -119,7 +119,6 @@ float x, y, z;
 boolean inMotion;
 
 
-
 void setup() {
   Serial.begin(115200);             // we agree to talk fast!
   CircuitPlayground.begin();
@@ -130,6 +129,7 @@ void setup() {
   
   CircuitPlayground.clearPixels();
   CircuitPlayground.setBrightness(30);
+  CircuitPlayground.setAccelRange(LIS3DH_RANGE_16_G);
   
   delay(50);                // wait until sensor GSR calms down
   minGsrSignal = 200;       // seed extrem values
@@ -158,13 +158,13 @@ void loop() {
     lastAlive = millis();
     // BPM and IBI have been Determined
     // Quantified Self "QS" true when arduino finds a heartbeat
-    fadeRatePulse = 255;         // Makes the LED Fade Effect Happen
+    //fadeRatePulse = 255;         // Makes the LED Fade Effect Happen
     // Set 'fadeRate' Variable to 255 to fade LED with pulse
     //serialOutputWhenBeatHappens();   // A Beat Happened, Output that to serial.
     QS = false;                      // reset the Quantified Self flag for next time
   }
   
-  unsigned long now = millis();
+  uint32_t now = millis();
   if (now - lastAlive > 5000) {
     alive = false;
     //reset coherence values
@@ -190,9 +190,9 @@ void refreshLeds() {
  */
  boolean moving() {
   // Take a reading of accellerometer data
-  x = CircuitPlayground.motionX();
-  y = CircuitPlayground.motionY();
-  z = CircuitPlayground.motionZ();
+  x = CircuitPlayground.motionX() / 9.8; // m/s2 to G
+  y = CircuitPlayground.motionY() / 9.8;
+  z = CircuitPlayground.motionZ() / 9.8;
     
   //Serial.print("Accel X: "); Serial.print(x); Serial.print(" ");
   //Serial.print("Y: "); Serial.print(y);       Serial.print(" ");
@@ -200,27 +200,12 @@ void refreshLeds() {
  
   // Get the magnitude (length) of the 3 axis vector
   // http://en.wikipedia.org/wiki/Euclidean_vector#Length
-  double storedVector = x*x;
-  storedVector += y*y;
-  storedVector += z*z;
-  storedVector = sqrt(storedVector);
-  //Serial.print("Len: "); Serial.println(storedVector);
-  
-  // wait a bit
-  delay(100);
-  
-  // get new data!
-  x = CircuitPlayground.motionX();
-  y = CircuitPlayground.motionY();
-  z = CircuitPlayground.motionZ();
-  double newVector = x*x;
-  newVector += y*y;
-  newVector += z*z;
-  newVector = sqrt(newVector);
-  //Serial.print("New Len: "); Serial.println(newVector);
+  float d = sqrt(x * x + y * y + z * z);
+  d = fabs(d - 1.0); // Neutral is 1G; d is relative acceleration now
+  //Serial.print("d: "); Serial.println(d);
   
   // are we moving 
-  if (abs(newVector - storedVector) > MOVE_THRESHOLD) {
+  if (d >= MOVE_THRESHOLD) {
     //Serial.println("Twinkle!");
     return true;
   }
@@ -260,8 +245,8 @@ void showSignal() {
 void calcBaseLine() {
   showSignal();
   unsigned long sum = 0;
-  unsigned int startTime = millis();
-  unsigned int now = 0;
+  uint32_t startTime = millis();
+  uint32_t now = 0;
   int index = 0;
   int fadeRate = 255;
   
@@ -364,6 +349,18 @@ void ledFadeToEmotions() {
   int percent = ((GsrSignal - minGsrSignal) / span) * 100;
 
   // TODO: inMotion ?? - HFR ??
+  if (inMotion) {
+    
+  }
+  if (tCoh >= 6) {
+    // high Heartrate
+  }
+  else if (tCoh >= 3) {
+    // middle Heartrate
+  }
+  else {
+    // regular Heartrate
+  }
 
   if (percent <= EMOTION_LEVEL_0) {
     color_emotion = EMOTION_COLOR_DEPRESSION;
@@ -438,31 +435,4 @@ void ledFadeToEmotions() {
   CircuitPlayground.strip.setPixelColor(0, color_emotion);
   CircuitPlayground.strip.setPixelColor(9, color_emotion);
 }
-
-/**
- * NOT USED
- */
-void ledFadeToBeat() {
-  fadeRatePulse -= 15;                         //  set LED fade value
-  fadeRatePulse = constrain(fadeRatePulse, 0, 255); //  keep LED fade value from going into negative numbers!
-
-  //find color mods
-  int r, g, b;
-  if (tCoh >= 6) {
-    r = 1; g = 0; b = 0;
-  }
-  else if (tCoh >= 3) {
-    r = 0; g = 0; b = 1;
-  }
-  else {
-    r = 0; g = 1; b = 0;
-  }
-
-  //fade first and last pixels to represent pulse
-  CircuitPlayground.strip.setPixelColor(1, CircuitPlayground.strip.Color(fadeRatePulse * r, fadeRatePulse * g, fadeRatePulse * b));
-  CircuitPlayground.strip.setPixelColor(8, CircuitPlayground.strip.Color(fadeRatePulse * r, fadeRatePulse * g, fadeRatePulse * b));
-}
-
-
-
 
