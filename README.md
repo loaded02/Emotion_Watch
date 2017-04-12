@@ -24,13 +24,8 @@
  - GSR Sensor Yellow wire to Circuit Playground #10
 
 **Mood Control:**
- The left PushButton (#4) is used to calculate a personal baseline. Start and Stop of calculation are indicated by a sound.
+ The left PushButton (#4) is used to calculate a personal baseline. Start and Stop of calculation are indicated by a custom signal.
  Neopixel LEDs 0 and 9 on the Circuit Playground are used to indicate the current mood. Color-Schema:
  - TBD
 
-**Pulse:** 
- Neopixel LEDs 1 and 8 on the Circuit Playground flash with each pulse detected and their color indicates a basic HRV "coherence" rating which roughly translates to the user's level of relaxation:
- - red = low relaxation
- - blue = moderate relaxation
- - green = high relaxation
  
