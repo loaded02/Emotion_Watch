@@ -26,8 +26,9 @@
  - GSR Sensor Yellow wire to Circuit Playground #10
 
 **Mood Control:**
+ Neopixel LEDs 0 and 9 on the Circuit Playground are used to indicate the current mood. Based on HFR, GSR and Accelleration values.
+ Neopixel LEDs 1 to 8 are used to suggest interactions according to the currently detected emotion.
  The left PushButton (#4) is used to calculate a personal baseline. Start and Stop of calculation are indicated by a custom signal.
- Neopixel LEDs 0 and 9 on the Circuit Playground are used to indicate the current mood. Color-Schema:
- - TBD
+
 
  
