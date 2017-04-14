@@ -32,10 +32,13 @@
 #include <Adafruit_CircuitPlayground.h>
 #include "neoAnim.h" //this is the name of the animation derrived from the neoAnim.png bitmap file
 #include "neoAnim_beat.h"
+#include "pitches.h"
+//#include "sound.h"
 
 /*define block*/
 #define BASELINE_AVERAGE_TIME 60000 // interval for baseline calculation (ms)
-#define MOVE_THRESHOLD 1.3          // mess with this number to adjust motiondetection - lower number = more sensitive
+#define ACCEL_AVERAGE_TIME    5000
+#define MOVE_THRESHOLD 0.1          // mess with this number to adjust motiondetection - lower number = more sensitive
 #define ANIMATION_TIME_LONG   400   // ms for animation duration
 #define ANIMATION_TIME_SHORT  300
 
@@ -79,7 +82,7 @@
 #define EMOTION_COLOR_CREATIVE        0xFF007F
 
 #define INTERVENTION_COLOR_WORK             0x0000FF
-#define INTERVENTION_COLOR_DONOTDRIVE      0xFF0000
+#define INTERVENTION_COLOR_DONOTDRIVE       0xFF0000
 #define INTERVENTION_COLOR_MEDITATE         0x00FF00
 #define INTERVENTION_COLOR_SHOPPING         0x3399FF
 #define INTERVENTION_COLOR_BUYFLOWERS       0xFF007F
@@ -90,47 +93,54 @@
 uint32_t color_emotion;             // currently selected emotion color
 int last_intervention_led, intervention_led;
 
-/*Pulse Sensor Specific Variables*/
-int pulsePin = 9;                 // Pulse Sensor purple wire connected to analog pin 9
+// Regards Serial OutPut  -- Set This Up to your needs
+static boolean serialOutput = true;    // Switch Serial Output on and off. Set to 'false' in Production!
+static boolean serialVisual = false;   // Set to 'false' for Arduino Serial Plotter.  Set to 'true' to see Arduino Serial Monitor ASCII
 
-//int fadeRatePulse = 0;                 // used to fade LED on with PWM on fadePin
-boolean alive = false;     // we've detected a hearbeat in the last 1.5sec
+/*Pulse Sensor Specific Variables*/
+int pulsePin = 9;                   // Pulse Sensor purple wire connected to analog pin 9
+
+//int fadeRatePulse = 0;            // used to fade LED on with PWM on fadePin
+boolean alive = false;              // we've detected a hearbeat in the last 1.5sec
 uint32_t lastAlive;
 
 // Volatile Variables, used in the interrupt service routine!
 volatile int BPM;                   // int that holds raw Analog in 0. updated every 2mS
-volatile int PulseSignal;                // holds the incoming raw data
-volatile int IBI = 600;             // int that holds the time interval between beats! Must be seeded!
+volatile int PulseSignal;           // holds the incoming raw data
 volatile boolean Pulse = false;     // "True" when User's live heartbeat is detected. "False" when not a "live beat".
 volatile boolean QS = false;        // becomes true when Arduoino finds a beat.
 volatile int tCoh = 10;             // coherence values total
-volatile int rCoh = 50;             // coherence rating
-
-// Regards Serial OutPut  -- Set This Up to your needs
-static boolean serialVisual = true;   // Set to 'false' by Default.  Re-set to 'true' to see Arduino Serial Monitor ASCII Visual Pulse
-
 
 /*GSR Sensor Specific Variables*/
 int gsrPin = 10;
-
-int baseline = 220;             // seeded baseline
+int baseline;
 
 // Volatile Variables, used in the interrupt service routine!
 volatile int GsrSignal;         // holds the incoming raw data
 volatile int minGsrSignal;
 volatile int maxGsrSignal;
+volatile int AvGsrSignal;       // sliding average of gsr value
 
 /*Accelerometer Specific Variables*/
-float x, y, z;
-boolean inMotion;
+boolean inMotion = false;
+int inMotionNoValues = 0;
+unsigned int inMotionSum = 0;
+boolean AvInMotion;
+uint32_t startAvInMotion = 0;
 
 /*Animation Specific Variables*/
-uint16_t *pixelBaseAddr, // Address of active animation table
-         pixelLen,      // Number of pixels in active table
-         pixelIdx;      // Index of first pixel of current frame
-uint8_t  pixelFPS;      // Frames/second for active animation
-boolean  pixelLoop;     // If true, animation repeats
-uint32_t prev = 0; // Time of last NeoPixel refresh
+uint16_t *pixelBaseAddr,  // Address of active animation table
+         pixelLen,        // Number of pixels in active table
+         pixelIdx;        // Index of first pixel of current frame
+uint8_t pixelFPS;         // Frames/second for active animation
+boolean pixelLoop;        // If true, animation repeats
+uint32_t prev = 0;        // Time of last NeoPixel refresh
+
+/*Sound Specific Variables*/
+const int numNotes = 2;                     // number of notes we are playing
+int melody[] = {NOTE_F6, NOTE_A6}; // specific notes in the melody
+int noteDurations[] = {16, 8}; // note durations: 4 = quarter note, 8 = eighth note, etc.:
+
 
 void setup() {
   Serial.begin(115200);             // we agree to talk fast!
@@ -146,10 +156,8 @@ void setup() {
   
   delay(50);                // wait until sensor GSR calms down
   baseline = 150;           // seed baseline
-  minGsrSignal = 50;       // seed extrem values
-  maxGsrSignal = 250;       // seed extrem values
-
-  inMotion = false;
+  minGsrSignal = 100;        // seed extrem values
+  maxGsrSignal = 200;       // seed extrem values
 
   showSignal();
 }
@@ -157,9 +165,9 @@ void setup() {
 
 //  Where the Magic Happens
 void loop() {
-  /*Serial Communication*/
-  //serialOutputPulse();
-  //serialOutputGsr();
+  if (serialOutput) {
+    serialOutputData();
+  }
   
   /*Handle PushButton*/
   if (CircuitPlayground.leftButton()){
@@ -172,25 +180,47 @@ void loop() {
     lastAlive = millis();
     // BPM and IBI have been Determined
     // Quantified Self "QS" true when arduino finds a heartbeat
-    //fadeRatePulse = 255;         // Makes the LED Fade Effect Happen
-    // Set 'fadeRate' Variable to 255 to fade LED with pulse
-    //serialOutputWhenBeatHappens();   // A Beat Happened, Output that to serial.
+    if (serialOutput) {
+      serialOutputWhenBeatHappens();   // A Beat Happened, Output that to serial.
+    }
     QS = false;                      // reset the Quantified Self flag for next time
   }
   
   uint32_t now = millis();
   if (now - lastAlive > 5000) {
     alive = false;
-    //reset coherence values
+    //reset coherence value
     tCoh = 10;
-    rCoh = 10;
   }
 
+  /*Acceleration detection*/
   inMotion = moving();
+  if (now - startAvInMotion < ACCEL_AVERAGE_TIME) {
+    inMotionSum += inMotion;
+    inMotionNoValues++;
+  } else {
+    if (float(inMotionSum) / inMotionNoValues > 0.5) { // if you were moving more than 50% of the time during last interval
+      AvInMotion = true;
+    } else {
+      AvInMotion = false;
+    }
+//    Serial.print("inMotionSum: ");
+//    Serial.println(inMotionSum);
+//    Serial.print("calc: ");
+//    Serial.println(float(inMotionSum) / inMotionNoValues);
+    inMotionSum = 0;
+    inMotionNoValues = 0;
+    startAvInMotion = now;
+  }
+  if (AvInMotion) {
+    if (serialOutput) {
+      serialOutputWhenMoving();
+    }
+  }
 
   refreshLeds();
   
-  delay(20);                             //  take a break
+  delay(20); //  take a break
 }
 
 // Begin playing a NeoPixel animation from a PROGMEM table
@@ -276,6 +306,23 @@ void playAnimationShort() {
   }
 }
 
+void playSound() {
+    for (int thisNote = 0; thisNote < numNotes; thisNote++) { // play notes of the melody
+      // to calculate the note duration, take one second divided by the note type.
+      //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
+      int noteDuration = 1000 / noteDurations[thisNote];
+      CircuitPlayground.playTone(melody[thisNote], noteDuration);
+ 
+      // to distinguish the notes, set a minimum time between them.
+      //   the note's duration + 30% seems to work well:
+      int pauseBetweenNotes = noteDuration * 1.30;
+      delay(pauseBetweenNotes);
+    }
+
+//  CircuitPlayground.speaker.playSound(audio, sizeof(audio), SAMPLE_RATE);
+//  CircuitPlayground.speaker.end();  
+}
+
 /**
  * Custom Signal
  * Used for start and end of Baseline Calculation
@@ -283,7 +330,7 @@ void playAnimationShort() {
 void showSignal() {
   /*sound*/
   if (CircuitPlayground.slideSwitch()) { // sound if switch is on + side (left)
-    CircuitPlayground.playTone(500, 100);
+    playSound();
   }
 
   /*neopixels from bitmap*/
@@ -304,9 +351,9 @@ void refreshLeds() {
  */
 boolean moving() {
   // Take a reading of accellerometer data
-  x = CircuitPlayground.motionX() / 9.8; // m/s2 to G
-  y = CircuitPlayground.motionY() / 9.8;
-  z = CircuitPlayground.motionZ() / 9.8;
+  float x = CircuitPlayground.motionX() / 9.8; // m/s2 to G
+  float y = CircuitPlayground.motionY() / 9.8;
+  float z = CircuitPlayground.motionZ() / 9.8;
     
   //Serial.print("Accel X: "); Serial.print(x); Serial.print(" ");
   //Serial.print("Y: "); Serial.print(y);       Serial.print(" ");
@@ -330,11 +377,10 @@ void calcBaseLine() {
   showSignal();
   unsigned long sum = 0;
   uint32_t startTime = millis();
-  uint32_t now = 0;
   int index = 0;
   int fadeRate = 255;
   
-  while (now <= BASELINE_AVERAGE_TIME) {
+  while (millis() - startTime < BASELINE_AVERAGE_TIME) {
     if (CircuitPlayground.leftButton() || CircuitPlayground.rightButton()){
       showSignal();
       return;
@@ -353,12 +399,11 @@ void calcBaseLine() {
     }
     
     delay(20);
-    now = millis() - startTime;
   }
   
   baseline = sum / index;
-  minGsrSignal = baseline - 100;       // seed extrem values
-  maxGsrSignal = baseline + 100;       // seed extrem values
+  minGsrSignal = baseline - 50;       // seed extrem values
+  maxGsrSignal = baseline + 50;       // seed extrem values
   showSignal();
   //Serial.print("Baseline: ");
   //Serial.println(baseline);
@@ -422,7 +467,7 @@ void ledFadeToInterventions() {
   /*signal new intervention*/
   if (last_intervention_led != intervention_led) {
     if (CircuitPlayground.slideSwitch()) { // sound if switch is on + side (left)
-      CircuitPlayground.playTone(500, 100);
+      playSound();
     }
   }
   last_intervention_led = intervention_led;
@@ -435,10 +480,10 @@ void ledFadeToInterventions() {
 void ledFadeToEmotions() {
   
   float span = maxGsrSignal - minGsrSignal;
-  int percent = ((GsrSignal - minGsrSignal) / span) * 100;
+  int percent = ((AvGsrSignal - minGsrSignal) / span) * 100;
   
   // TODO: inMotion ?? - HFR ??
-  if (inMotion) {
+  if (AvInMotion) {
     
   }
   if (tCoh >= 6) {
@@ -512,8 +557,8 @@ void ledFadeToEmotions() {
   //  Serial.println(maxGsrSignal);
   //  Serial.print("minGsrSignal: ");
   //  Serial.println(minGsrSignal);
-  //  Serial.print("GsrSignal: ");
-  //  Serial.println(GsrSignal);
+  //  Serial.print("AvGsrSignal: ");
+  //  Serial.println(AvGsrSignal);
   //  Serial.print("span: ");
   //  Serial.println(span);
   //  Serial.print("percent: ");

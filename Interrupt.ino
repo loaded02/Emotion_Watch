@@ -1,6 +1,4 @@
-
-
-
+/*HFR Specific Variables*/
 volatile int rate[10];                    // array to hold last ten IBI values
 volatile unsigned long sampleCounter = 0;          // used to determine pulse timing
 volatile unsigned long lastBeatTime = 0;           // used to find IBI
@@ -10,7 +8,7 @@ volatile int thresh = 525;                // used to find instant moment of hear
 volatile int amp = 100;                   // used to hold amplitude of pulse waveform, seeded
 volatile boolean firstBeat = true;        // used to seed rate array so we startup with reasonable BPM
 volatile boolean secondBeat = false;      // used to seed rate array so we startup with reasonable BPM
-
+volatile int IBI = 600;             // int that holds the time interval between beats! Must be seeded!
 volatile int lastIBI = 0;
 volatile boolean goingUp;
 
@@ -18,6 +16,11 @@ volatile boolean goingUp;
 volatile int coh = 0;              // running coherence rating
 volatile unsigned long lastCoh = 0;
 volatile unsigned long cohPeriod = 12000;
+
+/*GSR Specific Variables*/
+volatile int gsrValues[10];
+volatile int skips = 0;
+
 
 void interruptSetup() {
   TCCR1A = 0x00;
@@ -31,8 +34,8 @@ void interruptSetup() {
 // Timer 2 makes sure that we take a reading every 2 miliseconds
 ISR(TIMER1_COMPA_vect) {                        // triggered when Timer2 counts to 124
   cli();                                      // disable interrupts while we do this
-  PulseSignal = analogRead(pulsePin);              // read the Pulse Sensor
-  
+
+  /*GSR*/
   GsrSignal = analogRead(gsrPin);             // read the GSR Sensor
   if (GsrSignal > maxGsrSignal) {
     maxGsrSignal = GsrSignal;
@@ -40,6 +43,23 @@ ISR(TIMER1_COMPA_vect) {                        // triggered when Timer2 counts 
   if (GsrSignal < minGsrSignal) {
     minGsrSignal = GsrSignal;
   }
+  // sliding average
+  if (skips > 499) { // every second = 2ms * 500
+    AvGsrSignal = 0;
+    for (int i = 0; i <= 8; i++) {          // shift data in the array
+        gsrValues[i] = gsrValues[i + 1];           // and drop the oldest value
+        AvGsrSignal += gsrValues[i];              // add up the 9 oldest values
+    }
+    gsrValues[9] = GsrSignal;
+    AvGsrSignal += gsrValues[9];
+    AvGsrSignal /= 10;
+    skips = 0;
+  } else {
+    skips++;
+  }
+
+  /*HFR*/
+  PulseSignal = analogRead(pulsePin);              // read the Pulse Sensor
   
   sampleCounter += 2;                         // keep track of the time in mS with this variable
   int N = sampleCounter - lastBeatTime;       // monitor the time since the last beat to avoid noise

@@ -1,3 +1,12 @@
+### BREAKING CHANGES
+- Arduino Serial Monitor AND Serial Plotter can be selected via flags. 
+The order of signals in Serial Plotter is HFRSignal, BPM, AvGsrSignal, AvInMotionDetection
+
+### Bug Fixes
+- Another Sound is selected. Sound can be customized via Melody (notes) or small wav file.
+- GsrSignal is now a sliding average value over 10 seconds.
+- Motion has to be for a duration of at least 5 seconds in order to be detected.
+
 0.0.2
 =====
 
@@ -13,8 +22,6 @@
 - userfeedback during baseline calculation by neopixel animation
 - motion detection in place but not used yet
 - HFR detection in place but not used
-
-### Bug Fixes
 
 0.0.1
 =====
