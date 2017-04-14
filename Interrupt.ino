@@ -20,6 +20,7 @@ volatile unsigned long cohPeriod = 12000;
 /*GSR Specific Variables*/
 volatile int gsrValues[10];
 volatile int skips = 0;
+volatile boolean firstRun = true;
 
 
 void interruptSetup() {
@@ -44,6 +45,12 @@ ISR(TIMER1_COMPA_vect) {                        // triggered when Timer2 counts 
     minGsrSignal = GsrSignal;
   }
   // sliding average
+  if (firstRun && skips > 499) {
+    firstRun = false;
+    for (int i = 0; i <= 9; i++) {       // seed the AvGsrSignal to get a realisitic value at startup
+      gsrValues[i] = GsrSignal;
+    }
+  }
   if (skips > 499) { // every second = 2ms * 500
     AvGsrSignal = 0;
     for (int i = 0; i <= 8; i++) {          // shift data in the array

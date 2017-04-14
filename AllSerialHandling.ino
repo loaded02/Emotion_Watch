@@ -32,9 +32,7 @@ void serialOutputWhenMoving() {
 
 //  Sends Data to Pulse Sensor Processing App, Native Mac App, or Third-party Serial Readers. 
 void sendDataToSerial(){
-  Serial.print(PulseSignal);
-  Serial.print(" ");
-  Serial.print(BPM);
+  Serial.print(tCoh * 10);
   Serial.print(" ");
   Serial.print(AvGsrSignal);
   Serial.print(" ");
