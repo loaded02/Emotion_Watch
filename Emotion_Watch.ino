@@ -5,6 +5,7 @@
  based on Pulse Sensor Amped 1.4 by Joel Murphy and Yury Gitman http://www.pulsesensor.com and
  based on Arduino and Galvanic Skin Response (GSR) Sensor by hypnotistas
  based on Using Bitmaps to Animate NeoPixels on Circuit Playground https://learn.adafruit.com/circuit-playground-neoanim-using-bitmaps-to-animate-neopixels
+ based on Using notes for a melody on CircuitPlayground https://learn.adafruit.com/circuit-playground-music/the-sound-of-music
  
 
  Uses a Circuit Playground board's built-in LEDs to diplay mood according to sensor input
@@ -30,17 +31,20 @@
 */
 
 #include <Adafruit_CircuitPlayground.h>
+#include <avr/eeprom.h>
 #include "neoAnim.h" //this is the name of the animation derrived from the neoAnim.png bitmap file
 #include "neoAnim_beat.h"
-#include "pitches.h"
-//#include "sound.h"
+//#include "pitches.h"
+#include "notification.h"
 
 /*define block*/
-#define BASELINE_AVERAGE_TIME 60000 // interval for baseline calculation (ms)
+#define BASELINE_AVERAGE_TIME 45000 // interval for baseline calculation (ms)
 #define ACCEL_AVERAGE_TIME    5000
 #define MOVE_THRESHOLD 0.1          // mess with this number to adjust motiondetection - lower number = more sensitive
 #define ANIMATION_TIME_LONG   400   // ms for animation duration
 #define ANIMATION_TIME_SHORT  300
+
+#define EEPROM_ADDRESS        100
 
 #define EMOTION_LEVEL_0       10  // Depression (Value is Percent of interval max - min)
 #define EMOTION_LEVEL_1       20  // Pessimistic
@@ -137,9 +141,9 @@ boolean pixelLoop;        // If true, animation repeats
 uint32_t prev = 0;        // Time of last NeoPixel refresh
 
 /*Sound Specific Variables*/
-const int numNotes = 2;                     // number of notes we are playing
-int melody[] = {NOTE_F6, NOTE_A6}; // specific notes in the melody
-int noteDurations[] = {16, 8}; // note durations: 4 = quarter note, 8 = eighth note, etc.:
+//const int numNotes = 2;                     // number of notes we are playing
+//int melody[] = {NOTE_F6, NOTE_A6}; // specific notes in the melody
+//int noteDurations[] = {16, 8}; // note durations: 4 = quarter note, 8 = eighth note, etc.:
 
 
 void setup() {
@@ -155,9 +159,12 @@ void setup() {
   CircuitPlayground.setAccelRange(LIS3DH_RANGE_16_G);
   
   delay(50);                // wait until sensor GSR calms down
-  baseline = 150;           // seed baseline
-  minGsrSignal = 100;        // seed extrem values
-  maxGsrSignal = 200;       // seed extrem values
+  eeprom_read_block((void*)&baseline, (void*)EEPROM_ADDRESS, sizeof(baseline));
+  if (baseline == -1) {
+    baseline = 200;           // seed baseline
+  }
+  minGsrSignal = baseline - 50;        // seed extrem values
+  maxGsrSignal = baseline + 50;       // seed extrem values
 
   showSignal();
 }
@@ -307,20 +314,20 @@ void playAnimationShort() {
 }
 
 void playSound() {
-    for (int thisNote = 0; thisNote < numNotes; thisNote++) { // play notes of the melody
-      // to calculate the note duration, take one second divided by the note type.
-      //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
-      int noteDuration = 1000 / noteDurations[thisNote];
-      CircuitPlayground.playTone(melody[thisNote], noteDuration);
- 
-      // to distinguish the notes, set a minimum time between them.
-      //   the note's duration + 30% seems to work well:
-      int pauseBetweenNotes = noteDuration * 1.30;
-      delay(pauseBetweenNotes);
-    }
+//    for (int thisNote = 0; thisNote < numNotes; thisNote++) { // play notes of the melody
+//      // to calculate the note duration, take one second divided by the note type.
+//      //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
+//      int noteDuration = 1000 / noteDurations[thisNote];
+//      CircuitPlayground.playTone(melody[thisNote], noteDuration);
+// 
+//      // to distinguish the notes, set a minimum time between them.
+//      //   the note's duration + 30% seems to work well:
+//      int pauseBetweenNotes = noteDuration * 1.30;
+//      delay(pauseBetweenNotes);
+//    }
 
-//  CircuitPlayground.speaker.playSound(audio, sizeof(audio), SAMPLE_RATE);
-//  CircuitPlayground.speaker.end();  
+  CircuitPlayground.speaker.playSound(notificationAudioData, sizeof(notificationAudioData), notificationSampleRate);
+  CircuitPlayground.speaker.end();  
 }
 
 /**
@@ -404,6 +411,7 @@ void calcBaseLine() {
   baseline = sum / index;
   minGsrSignal = baseline - 50;       // seed extrem values
   maxGsrSignal = baseline + 50;       // seed extrem values
+  eeprom_write_block((const void*)&baseline, (void*)EEPROM_ADDRESS, sizeof(baseline));
   showSignal();
   //Serial.print("Baseline: ");
   //Serial.println(baseline);
