@@ -1,7 +1,11 @@
+0.0.3
+=====
+
 ### BREAKING CHANGES
 - Arduino Serial Monitor AND Serial Plotter can be selected via flags. 
 The order of signals in Serial Plotter is HFR Coherence Value, AvGsrSignal, AvInMotionDetection
-- baseline stored in EEPROM. So it is present after restart.
+- baseline stored in EEPROM. 
+- Red LED indicates that HFR Signal was not found.
 
 ### Bug Fixes
 - Another Sound is selected. Sound can be customized via Melody (notes) or small wav file.

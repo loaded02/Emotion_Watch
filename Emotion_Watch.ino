@@ -32,67 +32,13 @@
 
 #include <Adafruit_CircuitPlayground.h>
 #include <avr/eeprom.h>
-#include "neoAnim.h" //this is the name of the animation derrived from the neoAnim.png bitmap file
-#include "neoAnim_beat.h"
-//#include "pitches.h"
-#include "notification.h"
+#include "emotion_levels.h"
 
 /*define block*/
 #define BASELINE_AVERAGE_TIME 45000 // interval for baseline calculation (ms)
 #define ACCEL_AVERAGE_TIME    5000
-#define MOVE_THRESHOLD 0.1          // mess with this number to adjust motiondetection - lower number = more sensitive
-#define ANIMATION_TIME_LONG   400   // ms for animation duration
-#define ANIMATION_TIME_SHORT  300
-
+#define MOVE_THRESHOLD        0.1   // mess with this number to adjust motiondetection - lower number = more sensitive
 #define EEPROM_ADDRESS        100
-
-#define EMOTION_LEVEL_0       10  // Depression (Value is Percent of interval max - min)
-#define EMOTION_LEVEL_1       20  // Pessimistic
-#define EMOTION_LEVEL_2       25  // Fragile
-#define EMOTION_LEVEL_3       30  // Isolated
-#define EMOTION_LEVEL_4       35  // Bored
-#define EMOTION_LEVEL_5       40  // Safe
-#define EMOTION_LEVEL_6       45  // Hopeful
-#define EMOTION_LEVEL_7       50  // Content
-#define EMOTION_LEVEL_8       55  // Refreshed
-#define EMOTION_LEVEL_9       60  // Engaged - Friendly
-#define EMOTION_LEVEL_10      65  // Creative
-#define EMOTION_LEVEL_11      70  // Romantic
-#define EMOTION_LEVEL_12      75  // Happy
-#define EMOTION_LEVEL_13      80  // Annoyed
-#define EMOTION_LEVEL_14      85  // Nervous
-#define EMOTION_LEVEL_15      90  // Rage
-#define EMOTION_LEVEL_16      100 // Fear 
-
-#define COLOR_ERROR           0xFFFFFF
-#define COLOR_NON             0x000000
-
-#define EMOTION_COLOR_FEAR            0x0D0D0D
-#define EMOTION_COLOR_DEPRESSION      0x2F4F4F
-#define EMOTION_COLOR_PESSIMISTIC     0x0000FF
-#define EMOTION_COLOR_SAFE            0x00FFFF
-#define EMOTION_COLOR_HOPEFUL         0x3399FF
-#define EMOTION_COLOR_CONTENT         0x00FF00
-#define EMOTION_COLOR_REFRESHED       0x7CFC00
-#define EMOTION_COLOR_BORED           0x33FF33
-#define EMOTION_COLOR_RAGE            0x190000
-#define EMOTION_COLOR_ANNOYED         0xFF0000
-#define EMOTION_COLOR_ROMANTIC        0xFF3333
-#define EMOTION_COLOR_NERVOUS         0x780A00
-#define EMOTION_COLOR_FRIENDLY        0xFF4500
-#define EMOTION_COLOR_HAPPY           0xFFEA00
-#define EMOTION_COLOR_ISOLATED        0xCC6600
-#define EMOTION_COLOR_FRAGILE         0x3C0082
-#define EMOTION_COLOR_CREATIVE        0xFF007F
-
-#define INTERVENTION_COLOR_WORK             0x0000FF
-#define INTERVENTION_COLOR_DONOTDRIVE       0xFF0000
-#define INTERVENTION_COLOR_MEDITATE         0x00FF00
-#define INTERVENTION_COLOR_SHOPPING         0x3399FF
-#define INTERVENTION_COLOR_BUYFLOWERS       0xFF007F
-#define INTERVENTION_COLOR_MAKEDECISSION    0x7CFC00
-#define INTERVENTION_COLOR_SOLVEPROBLEM     0xFF4500
-#define INTERVENTION_COLOR_EXCERCISE        0x00FFFF
 
 uint32_t color_emotion;             // currently selected emotion color
 int last_intervention_led, intervention_led;
@@ -131,19 +77,6 @@ int inMotionNoValues = 0;
 unsigned int inMotionSum = 0;
 boolean AvInMotion;
 uint32_t startAvInMotion = 0;
-
-/*Animation Specific Variables*/
-uint16_t *pixelBaseAddr,  // Address of active animation table
-         pixelLen,        // Number of pixels in active table
-         pixelIdx;        // Index of first pixel of current frame
-uint8_t pixelFPS;         // Frames/second for active animation
-boolean pixelLoop;        // If true, animation repeats
-uint32_t prev = 0;        // Time of last NeoPixel refresh
-
-/*Sound Specific Variables*/
-//const int numNotes = 2;                     // number of notes we are playing
-//int melody[] = {NOTE_F6, NOTE_A6}; // specific notes in the melody
-//int noteDurations[] = {16, 8}; // note durations: 4 = quarter note, 8 = eighth note, etc.:
 
 
 void setup() {
@@ -184,6 +117,7 @@ void loop() {
   /*Pulse detection*/
   if (QS == true) {    // A Heartbeat Was Found
     alive = true;
+    CircuitPlayground.redLED(false);
     lastAlive = millis();
     // BPM and IBI have been Determined
     // Quantified Self "QS" true when arduino finds a heartbeat
@@ -196,6 +130,7 @@ void loop() {
   uint32_t now = millis();
   if (now - lastAlive > 5000) {
     alive = false;
+    CircuitPlayground.redLED(true);
     //reset coherence value
     tCoh = 10;
   }
@@ -228,123 +163,6 @@ void loop() {
   refreshLeds();
   
   delay(20); //  take a break
-}
-
-// Begin playing a NeoPixel animation from a PROGMEM table
-void initAnimation(const uint16_t *addr, uint8_t fps, uint16_t bytes, boolean repeat) {
-  pixelBaseAddr = addr;
-  if(addr) {
-    pixelFPS    = fps;
-    pixelLen    = bytes / 2;
-    pixelLoop   = repeat; //if set to 'repeat' it'll loop, set to 0 to play once only
-    pixelIdx    = 0;
-  } else {
-    CircuitPlayground.strip.clear();
-  }
-}
-
-void playAnimationLong() {
-  uint32_t startTime = millis();
-  while (millis() - startTime < ANIMATION_TIME_LONG) {
-    uint32_t t;      // Current time in milliseconds
-    
-    // Until the next animation frame interval has elapsed...
-    while(((t = millis()) - prev) < (1000 / pixelFPS));
-    // Show LEDs rendered on prior pass.  It's done this way so animation timing
-    // is a bit more consistent (frame rendering time may vary slightly).
-    CircuitPlayground.strip.show();
-    
-    prev = t; // Save refresh time for next frame sync
-    
-    if(pixelBaseAddr) {
-      for(uint8_t i=0; i<10; i++) { // For each NeoPixel...
-        // Read pixel color from PROGMEM table
-        uint16_t rgb = pgm_read_word(&pixelBaseAddr[pixelIdx++]);
-        // Expand 16-bit color to 24 bits using gamma tables
-        // RRRRRGGGGGGBBBBB -> RRRRRRRR GGGGGGGG BBBBBBBB
-        CircuitPlayground.strip.setPixelColor(i,
-        pgm_read_byte(&gamma5[ rgb >> 11        ]),
-        pgm_read_byte(&gamma6[(rgb >>  5) & 0x3F]),
-        pgm_read_byte(&gamma5[ rgb        & 0x1F]));
-      }
-      if(pixelIdx >= pixelLen) { // End of animation table reached
-        if(pixelLoop) { // Repeat animation
-          pixelIdx = 0; // Reset index to start of table
-        } else {        // else switch off LEDs
-          initAnimation(NULL, neoAnimFPS, 0, false);
-        }
-      }
-    }
-  }
-}
-
-void playAnimationShort() {
-  uint32_t startTime = millis();
-  while (millis() - startTime < ANIMATION_TIME_SHORT) {
-    uint32_t t;      // Current time in milliseconds
-    
-    // Until the next animation frame interval has elapsed...
-    while(((t = millis()) - prev) < (1000 / pixelFPS));
-    // Show LEDs rendered on prior pass.  It's done this way so animation timing
-    // is a bit more consistent (frame rendering time may vary slightly).
-    CircuitPlayground.strip.show();
-    
-    prev = t; // Save refresh time for next frame sync
-    
-    if(pixelBaseAddr) {
-      for(uint8_t i=0; i<10; i++) { // For each NeoPixel...
-        // Read pixel color from PROGMEM table
-        uint16_t rgb = pgm_read_word(&pixelBaseAddr[pixelIdx++]);
-        // Expand 16-bit color to 24 bits using gamma tables
-        // RRRRRGGGGGGBBBBB -> RRRRRRRR GGGGGGGG BBBBBBBB
-        CircuitPlayground.strip.setPixelColor(i,
-        pgm_read_byte(&gamma7[ rgb >> 11        ]), // renaming gamma 5,6 to 7,8
-        pgm_read_byte(&gamma8[(rgb >>  5) & 0x3F]),
-        pgm_read_byte(&gamma7[ rgb        & 0x1F]));
-      }
-      if(pixelIdx >= pixelLen) { // End of animation table reached
-        if(pixelLoop) { // Repeat animation
-          pixelIdx = 0; // Reset index to start of table
-        } else {        // else switch off LEDs
-          initAnimation(NULL, neoAnimFPS, 0, false);
-        }
-      }
-    }
-  }
-}
-
-void playSound() {
-//    for (int thisNote = 0; thisNote < numNotes; thisNote++) { // play notes of the melody
-//      // to calculate the note duration, take one second divided by the note type.
-//      //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
-//      int noteDuration = 1000 / noteDurations[thisNote];
-//      CircuitPlayground.playTone(melody[thisNote], noteDuration);
-// 
-//      // to distinguish the notes, set a minimum time between them.
-//      //   the note's duration + 30% seems to work well:
-//      int pauseBetweenNotes = noteDuration * 1.30;
-//      delay(pauseBetweenNotes);
-//    }
-
-  CircuitPlayground.speaker.playSound(notificationAudioData, sizeof(notificationAudioData), notificationSampleRate);
-  CircuitPlayground.speaker.end();  
-}
-
-/**
- * Custom Signal
- * Used for start and end of Baseline Calculation
- */
-void showSignal() {
-  /*sound*/
-  if (CircuitPlayground.slideSwitch()) { // sound if switch is on + side (left)
-    playSound();
-  }
-
-  /*neopixels from bitmap*/
-  CircuitPlayground.clearPixels();
-  initAnimation(neoAnimPixelData, neoAnimFPS, sizeof(neoAnimPixelData), false);
-  playAnimationLong();
-  CircuitPlayground.clearPixels();
 }
 
 void refreshLeds() {
@@ -397,12 +215,7 @@ void calcBaseLine() {
     index++;
 
     if (index % 70 == 0) {
-      //flash pixels to represent pulse
-      /*neopixels from bitmap*/
-      CircuitPlayground.clearPixels();
-      initAnimation(neoAnim_beatPixelData, neoAnim_beatFPS, sizeof(neoAnim_beatPixelData), false);
-      playAnimationShort();
-      CircuitPlayground.clearPixels();
+      flashPixels();
     }
     
     delay(20);
@@ -479,7 +292,6 @@ void ledFadeToInterventions() {
     }
   }
   last_intervention_led = intervention_led;
-
 }
 
 /**
@@ -488,12 +300,16 @@ void ledFadeToInterventions() {
 void ledFadeToEmotions() {
   
   float span = maxGsrSignal - minGsrSignal;
-  int percent = ((AvGsrSignal - minGsrSignal) / span) * 100;
+  int gsrPercent = ((AvGsrSignal - minGsrSignal) / span) * 100;
   
-  // TODO: inMotion ?? - HFR ??
-  if (AvInMotion) {
-    
+  if (!AvInMotion) {
+    emoNoMovement(gsrPercent);
   }
+  else {
+    emoMovement(gsrPercent);
+  }
+
+  // TODO: HFR ??
   if (alive && tCoh >= 6) {
     // high Heartrate
   }
@@ -502,61 +318,6 @@ void ledFadeToEmotions() {
   }
   else if (alive) {
     // regular Heartrate
-  }
-  
-  if (percent <= EMOTION_LEVEL_0) {
-    color_emotion = EMOTION_COLOR_DEPRESSION;
-  }
-  else if (percent <= EMOTION_LEVEL_1) {
-    color_emotion = EMOTION_COLOR_PESSIMISTIC;
-  }
-  else if (percent <= EMOTION_LEVEL_2) {
-    color_emotion = EMOTION_COLOR_FRAGILE;
-  }
-  else if (percent <= EMOTION_LEVEL_3) {
-    color_emotion = EMOTION_COLOR_ISOLATED;
-  }
-  else if (percent <= EMOTION_LEVEL_4) {
-    color_emotion = EMOTION_COLOR_BORED;
-  }
-  else if (percent <= EMOTION_LEVEL_5) {
-    color_emotion = EMOTION_COLOR_SAFE;
-  }
-  else if (percent <= EMOTION_LEVEL_6) {
-    color_emotion = EMOTION_COLOR_HOPEFUL;
-  }
-  else if (percent <= EMOTION_LEVEL_7) {
-    color_emotion = EMOTION_COLOR_CONTENT;
-  }
-  else if (percent <= EMOTION_LEVEL_8) {
-    color_emotion = EMOTION_COLOR_REFRESHED;
-  }
-  else if (percent <= EMOTION_LEVEL_9) {
-    color_emotion = EMOTION_COLOR_FRIENDLY;
-  }
-  else if (percent <= EMOTION_LEVEL_10) {
-    color_emotion = EMOTION_COLOR_CREATIVE;
-  }
-  else if (percent <= EMOTION_LEVEL_11) {
-    color_emotion = EMOTION_COLOR_ROMANTIC;
-  }
-  else if (percent <= EMOTION_LEVEL_12) {
-    color_emotion = EMOTION_COLOR_HAPPY;
-  }
-  else if (percent <= EMOTION_LEVEL_13) {
-    color_emotion = EMOTION_COLOR_ANNOYED;
-  }
-  else if (percent <= EMOTION_LEVEL_14) {
-    color_emotion = EMOTION_COLOR_NERVOUS;
-  }
-  else if (percent <= EMOTION_LEVEL_15) {
-    color_emotion = EMOTION_COLOR_RAGE;
-  }
-  else if (percent <= EMOTION_LEVEL_16) {
-    color_emotion = EMOTION_COLOR_FEAR;
-  }
-  else {
-    color_emotion = COLOR_ERROR;
   }
   
   //  Serial.print("Baseline: ");
@@ -576,5 +337,122 @@ void ledFadeToEmotions() {
   
   CircuitPlayground.strip.setPixelColor(0, color_emotion);
   CircuitPlayground.strip.setPixelColor(9, color_emotion);
+}
+
+void emoNoMovement(int gsrPercent) {
+  if (gsrPercent <= EMOTION_NOM_LEVEL_0) {
+    color_emotion = EMOTION_COLOR_DEPRESSION;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_1) {
+    color_emotion = EMOTION_COLOR_PESSIMISTIC;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_2) {
+    color_emotion = EMOTION_COLOR_FRAGILE;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_3) {
+    color_emotion = EMOTION_COLOR_ISOLATED;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_4) {
+    color_emotion = EMOTION_COLOR_BORED;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_5) {
+    color_emotion = EMOTION_COLOR_SAFE;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_6) {
+    color_emotion = EMOTION_COLOR_HOPEFUL;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_7) {
+    color_emotion = EMOTION_COLOR_CONTENT;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_8) {
+    color_emotion = EMOTION_COLOR_REFRESHED;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_9) {
+    color_emotion = EMOTION_COLOR_FRIENDLY;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_10) {
+    color_emotion = EMOTION_COLOR_CREATIVE;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_11) {
+    color_emotion = EMOTION_COLOR_ROMANTIC;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_12) {
+    color_emotion = EMOTION_COLOR_HAPPY;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_13) {
+    color_emotion = EMOTION_COLOR_ANNOYED;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_14) {
+    color_emotion = EMOTION_COLOR_NERVOUS;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_15) {
+    color_emotion = EMOTION_COLOR_RAGE;
+  }
+  else if (gsrPercent <= EMOTION_NOM_LEVEL_16) {
+    color_emotion = EMOTION_COLOR_FEAR;
+  }
+  else {
+    color_emotion = COLOR_ERROR;
+  }
+}
+
+void emoMovement(int gsrPercent) {
+  if (gsrPercent < EMOTION_MOVE_LOWER_LIMIT) { // no values underneath this value
+    color_emotion = COLOR_ERROR;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_0) {
+    color_emotion = EMOTION_COLOR_DEPRESSION;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_1) {
+    color_emotion = EMOTION_COLOR_PESSIMISTIC;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_2) {
+    color_emotion = EMOTION_COLOR_FRAGILE;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_3) {
+    color_emotion = EMOTION_COLOR_ISOLATED;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_4) {
+    color_emotion = EMOTION_COLOR_BORED;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_5) {
+    color_emotion = EMOTION_COLOR_SAFE;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_6) {
+    color_emotion = EMOTION_COLOR_HOPEFUL;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_7) {
+    color_emotion = EMOTION_COLOR_CONTENT;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_8) {
+    color_emotion = EMOTION_COLOR_REFRESHED;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_9) {
+    color_emotion = EMOTION_COLOR_FRIENDLY;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_10) {
+    color_emotion = EMOTION_COLOR_CREATIVE;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_11) {
+    color_emotion = EMOTION_COLOR_ROMANTIC;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_12) {
+    color_emotion = EMOTION_COLOR_HAPPY;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_13) {
+    color_emotion = EMOTION_COLOR_ANNOYED;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_14) {
+    color_emotion = EMOTION_COLOR_NERVOUS;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_15) {
+    color_emotion = EMOTION_COLOR_RAGE;
+  }
+  else if (gsrPercent <= EMOTION_MOVE_LEVEL_16) {
+    color_emotion = EMOTION_COLOR_FEAR;
+  }
+  else {
+    color_emotion = COLOR_ERROR;
+  }
 }
 
