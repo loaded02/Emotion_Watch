@@ -35,7 +35,7 @@
 #include "emotion_levels.h"
 
 /*define block*/
-#define BASELINE_AVERAGE_TIME 45000 // interval for baseline calculation (ms)
+#define BASELINE_AVERAGE_TIME 10000 // interval for baseline calculation (ms)
 #define ACCEL_AVERAGE_TIME    5000
 #define MOVE_THRESHOLD        0.1   // mess with this number to adjust motiondetection - lower number = more sensitive
 #define EEPROM_ADDRESS        100
@@ -43,18 +43,17 @@
 uint32_t color_emotion;             // currently selected emotion color
 int last_intervention_led, intervention_led;
 
-// Regards Serial OutPut  -- Set This Up to your needs
-static boolean serialOutput = true;    // Switch Serial Output on and off. Set to 'false' in Production!
+/*Regards Serial OutPut  -- Set This Up to your needs*/
+static boolean serialOutput = false;   // Switch Serial Output on and off. Set to 'false' in Production!
 static boolean serialVisual = false;   // Set to 'false' for Arduino Serial Plotter.  Set to 'true' to see Arduino Serial Monitor ASCII
 
 /*Pulse Sensor Specific Variables*/
 int pulsePin = 9;                   // Pulse Sensor purple wire connected to analog pin 9
 
-//int fadeRatePulse = 0;            // used to fade LED on with PWM on fadePin
 boolean alive = false;              // we've detected a hearbeat in the last 1.5sec
 uint32_t lastAlive;
 
-// Volatile Variables, used in the interrupt service routine!
+/*Volatile Variables, used in the interrupt service routine!*/
 volatile int BPM;                   // int that holds raw Analog in 0. updated every 2mS
 volatile int PulseSignal;           // holds the incoming raw data
 volatile boolean Pulse = false;     // "True" when User's live heartbeat is detected. "False" when not a "live beat".
@@ -65,17 +64,17 @@ volatile int tCoh = 10;             // coherence values total
 int gsrPin = 10;
 int baseline;
 
-// Volatile Variables, used in the interrupt service routine!
+/*Volatile Variables, used in the interrupt service routine!*/
 volatile int GsrSignal;         // holds the incoming raw data
 volatile int minGsrSignal;
 volatile int maxGsrSignal;
 volatile int AvGsrSignal;       // sliding average of gsr value
 
 /*Accelerometer Specific Variables*/
-boolean inMotion = false;
+boolean inMotion = false;       // InMotion value. Is true, when device is above MOVE_THRESHOLD
 int inMotionNoValues = 0;
 unsigned int inMotionSum = 0;
-boolean AvInMotion;
+boolean AvInMotion = false;     // Average InMotion value. Is true, when device is during ACCEL_AVERAGE_TIME more than 50% above MOVE_THRESHOLD
 uint32_t startAvInMotion = 0;
 
 
@@ -102,8 +101,9 @@ void setup() {
   showSignal();
 }
 
-
-//  Where the Magic Happens
+/** 
+ * Where the Magic Happens 
+ */
 void loop() {
   if (serialOutput) {
     serialOutputData();
@@ -142,8 +142,14 @@ void loop() {
     inMotionNoValues++;
   } else {
     if (float(inMotionSum) / inMotionNoValues > 0.5) { // if you were moving more than 50% of the time during last interval
+      if (!AvInMotion) {
+        calcBaseLine(); // re init baseline when moving state changes
+      }
       AvInMotion = true;
     } else {
+      if (AvInMotion) {
+        calcBaseLine(); // re init baseline when moving state changes
+      }
       AvInMotion = false;
     }
 //    Serial.print("inMotionSum: ");
@@ -198,6 +204,10 @@ boolean moving() {
   return false;
 }
 
+/**
+ * Adjust baseline, min-, maxGsrSignal to current state of user
+ * Needed if Moving or not. Or if person changes.
+ */
 void calcBaseLine() {
   showSignal();
   unsigned long sum = 0;
@@ -308,17 +318,6 @@ void ledFadeToEmotions() {
   else {
     emoMovement(gsrPercent);
   }
-
-  // TODO: HFR ??
-  if (alive && tCoh >= 6) {
-    // high Heartrate
-  }
-  else if (alive && tCoh >= 3) {
-    // middle Heartrate
-  }
-  else if (alive) {
-    // regular Heartrate
-  }
   
   //  Serial.print("Baseline: ");
   //  Serial.println(baseline);
@@ -339,6 +338,9 @@ void ledFadeToEmotions() {
   CircuitPlayground.strip.setPixelColor(9, color_emotion);
 }
 
+/**
+ * Emotion calcultion when not moving
+ */
 void emoNoMovement(int gsrPercent) {
   if (gsrPercent <= EMOTION_NOM_LEVEL_0) {
     color_emotion = EMOTION_COLOR_DEPRESSION;
@@ -377,6 +379,16 @@ void emoNoMovement(int gsrPercent) {
     color_emotion = EMOTION_COLOR_ROMANTIC;
   }
   else if (gsrPercent <= EMOTION_NOM_LEVEL_12) {
+    // TODO: HFR - Correction of Gsr Emotion possible
+    if (alive && tCoh >= 6) {
+      // high Heartrate
+    }
+    else if (alive && tCoh >= 3) {
+      // middle Heartrate
+    }
+    else if (alive) {
+      // regular Heartrate
+    }
     color_emotion = EMOTION_COLOR_HAPPY;
   }
   else if (gsrPercent <= EMOTION_NOM_LEVEL_13) {
@@ -396,6 +408,9 @@ void emoNoMovement(int gsrPercent) {
   }
 }
 
+/**
+ * Emotion calcultion when moving
+ */
 void emoMovement(int gsrPercent) {
   if (gsrPercent < EMOTION_MOVE_LOWER_LIMIT) { // no values underneath this value
     color_emotion = COLOR_ERROR;

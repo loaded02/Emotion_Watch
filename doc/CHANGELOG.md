@@ -1,3 +1,10 @@
+0.0.4
+=====
+
+### BREAKING CHANGES
+- HFR is used as correction factor of GSR and Acceleration result for specific Emotion levels
+- When changing from Motion to NoMotion or vice versa, baseline gets recalculated
+
 0.0.3
 =====
 

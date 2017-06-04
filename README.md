@@ -7,7 +7,7 @@
  based on Using notes for a melody on CircuitPlayground https://learn.adafruit.com/circuit-playground-music/the-sound-of-music
  
 
- Uses a Circuit Playground board's built-in LEDs to diplay mood according to sensor input
+ Uses a Circuit Playground board's built-in LEDs to diplay mood according to Galvanic Skin Response, Heartrate and Acceleration values.
  
  The [ChangeLog](doc/CHANGELOG.md) provides you with information about important changes.
  
@@ -31,5 +31,14 @@
  Neopixel LEDs 1 to 8 are used to suggest interactions according to the currently detected emotion.
  The left PushButton (#4) is used to calculate a personal baseline. Start and Stop of calculation are indicated by a custom signal.
 
-
+**Functionality:**
+- LED 0 and 9 indicate Emotion
+- LED 1 to 8 indicate Interaction
+- GsrSignal is a sliding average value over 10 seconds.
+- Motion has to be present for a duration of at least 5 seconds in order to be detected.
+- HFR value is correction factor for calculated EmotionLevel from GSR and Acceleration.
+- Red LED indicates that HFR Signal was not found.
+- Switch turns sound on and off ( mute when switch is on - side (right))
+- LeftButton (#4) starts baseline calculation. Start and Stop indicated by custom signal. Any PushButton stops Calculation.
+- Baseline is saved in EEPROM
  

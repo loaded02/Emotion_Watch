@@ -138,7 +138,7 @@ void showSignal() {
 }
 
 /**
- * flash pixels to represent pulse
+ * Flash pixels to represent pulse during Baseline Calculation
  */
 void flashPixels() {
   /*neopixels from bitmap*/
