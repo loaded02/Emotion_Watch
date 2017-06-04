@@ -36,6 +36,7 @@
 
 /*define block*/
 #define BASELINE_AVERAGE_TIME 10000 // interval for baseline calculation (ms)
+#define BASELINE_OFFSET       50    // min, max = basline +/- offset
 #define ACCEL_AVERAGE_TIME    5000
 #define MOVE_THRESHOLD        0.1   // mess with this number to adjust motiondetection - lower number = more sensitive
 #define EEPROM_ADDRESS        100
@@ -95,8 +96,8 @@ void setup() {
   if (baseline == -1) {
     baseline = 200;           // seed baseline
   }
-  minGsrSignal = baseline - 50;        // seed extrem values
-  maxGsrSignal = baseline + 50;       // seed extrem values
+  minGsrSignal = baseline - BASELINE_OFFSET;        // seed extrem values
+  maxGsrSignal = baseline + BASELINE_OFFSET;       // seed extrem values
 
   showSignal();
 }
@@ -232,8 +233,8 @@ void calcBaseLine() {
   }
   
   baseline = sum / index;
-  minGsrSignal = baseline - 50;       // seed extrem values
-  maxGsrSignal = baseline + 50;       // seed extrem values
+  minGsrSignal = baseline - BASELINE_OFFSET;       // seed extrem values
+  maxGsrSignal = baseline + BASELINE_OFFSET;       // seed extrem values
   eeprom_write_block((const void*)&baseline, (void*)EEPROM_ADDRESS, sizeof(baseline));
   showSignal();
   //Serial.print("Baseline: ");
