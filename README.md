@@ -42,3 +42,7 @@
 - LeftButton (#4) starts baseline calculation. Start and Stop indicated by custom signal. Any PushButton stops Calculation.
 - Baseline is saved in EEPROM
  
+ 
+**What it should look like**
+
+![Idea](https://github.com/loaded02/Emotion_Watch/raw/master/doc/screenshot_1.png)
