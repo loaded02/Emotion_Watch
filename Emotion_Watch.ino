@@ -348,6 +348,7 @@ void emoNoMovement(int gsrPercent) {
   }
   else if (gsrPercent <= EMOTION_NOM_LEVEL_1) {
     color_emotion = EMOTION_COLOR_PESSIMISTIC;
+    adjustToHeartRate();
   }
   else if (gsrPercent <= EMOTION_NOM_LEVEL_2) {
     color_emotion = EMOTION_COLOR_FRAGILE;
@@ -366,6 +367,7 @@ void emoNoMovement(int gsrPercent) {
   }
   else if (gsrPercent <= EMOTION_NOM_LEVEL_7) {
     color_emotion = EMOTION_COLOR_CONTENT;
+    adjustToHeartRate();
   }
   else if (gsrPercent <= EMOTION_NOM_LEVEL_8) {
     color_emotion = EMOTION_COLOR_REFRESHED;
@@ -380,17 +382,8 @@ void emoNoMovement(int gsrPercent) {
     color_emotion = EMOTION_COLOR_ROMANTIC;
   }
   else if (gsrPercent <= EMOTION_NOM_LEVEL_12) {
-    // TODO: HFR - Correction of Gsr Emotion possible
-    if (alive && tCoh >= 6) {
-      // high Heartrate
-    }
-    else if (alive && tCoh >= 3) {
-      // middle Heartrate
-    }
-    else if (alive) {
-      // regular Heartrate
-    }
     color_emotion = EMOTION_COLOR_HAPPY;
+    adjustToHeartRate();
   }
   else if (gsrPercent <= EMOTION_NOM_LEVEL_13) {
     color_emotion = EMOTION_COLOR_ANNOYED;
@@ -403,6 +396,7 @@ void emoNoMovement(int gsrPercent) {
   }
   else if (gsrPercent <= EMOTION_NOM_LEVEL_16) {
     color_emotion = EMOTION_COLOR_FEAR;
+    adjustToHeartRate();
   }
   else {
     color_emotion = COLOR_ERROR;
@@ -421,6 +415,7 @@ void emoMovement(int gsrPercent) {
   }
   else if (gsrPercent <= EMOTION_MOVE_LEVEL_1) {
     color_emotion = EMOTION_COLOR_PESSIMISTIC;
+    adjustToHeartRate();
   }
   else if (gsrPercent <= EMOTION_MOVE_LEVEL_2) {
     color_emotion = EMOTION_COLOR_FRAGILE;
@@ -439,6 +434,7 @@ void emoMovement(int gsrPercent) {
   }
   else if (gsrPercent <= EMOTION_MOVE_LEVEL_7) {
     color_emotion = EMOTION_COLOR_CONTENT;
+    adjustToHeartRate();
   }
   else if (gsrPercent <= EMOTION_MOVE_LEVEL_8) {
     color_emotion = EMOTION_COLOR_REFRESHED;
@@ -454,6 +450,7 @@ void emoMovement(int gsrPercent) {
   }
   else if (gsrPercent <= EMOTION_MOVE_LEVEL_12) {
     color_emotion = EMOTION_COLOR_HAPPY;
+    adjustToHeartRate();
   }
   else if (gsrPercent <= EMOTION_MOVE_LEVEL_13) {
     color_emotion = EMOTION_COLOR_ANNOYED;
@@ -466,9 +463,71 @@ void emoMovement(int gsrPercent) {
   }
   else if (gsrPercent <= EMOTION_MOVE_LEVEL_16) {
     color_emotion = EMOTION_COLOR_FEAR;
+    adjustToHeartRate();
   }
   else {
     color_emotion = COLOR_ERROR;
   }
 }
 
+/**
+ * HFR - Correction of Gsr Emotion
+ */
+void adjustToHeartRate() {
+  /*adjust emotion pessimistic if HRV available*/
+  if (color_emotion == EMOTION_COLOR_PESSIMISTIC) {
+    if (alive && tCoh >= 6) {
+    // high Heartrate -> confirm pessimistic
+    }
+    else if (alive && tCoh >= 3) {
+      // middle Heartrate
+      color_emotion = EMOTION_COLOR_ISOLATED;
+    }
+    else if (alive) {
+      // regular Heartrate
+      color_emotion = EMOTION_COLOR_BORED;
+    }
+  }
+  /*adjust emotion content if HRV available*/
+  else if (color_emotion == EMOTION_COLOR_CONTENT) {
+    if (alive && tCoh >= 6) {
+    // high Heartrate
+    color_emotion = EMOTION_COLOR_SAFE;
+    }
+    else if (alive && tCoh >= 3) {
+      // middle Heartrate -> confirm content
+    }
+    else if (alive) {
+      // regular Heartrate
+      color_emotion = EMOTION_COLOR_FRIENDLY;
+    }
+  }
+  /*adjust emotion happy if HRV available*/
+  else if (color_emotion == EMOTION_COLOR_HAPPY) {
+    if (alive && tCoh >= 6) {
+    // high Heartrate
+    color_emotion = EMOTION_COLOR_CREATIVE;
+    }
+    else if (alive && tCoh >= 3) {
+      // middle Heartrate -> confirm happy
+    }
+    else if (alive) {
+      // regular Heartrate
+      color_emotion = EMOTION_COLOR_ANNOYED;
+    }
+  }
+  /*adjust emotion fear if HRV available*/
+  else if (color_emotion == EMOTION_COLOR_FEAR) {
+    if (alive && tCoh >= 6) {
+    // high Heartrate
+    color_emotion = EMOTION_COLOR_ANNOYED;
+    }
+    else if (alive && tCoh >= 3) {
+      // middle Heartrate
+      color_emotion = EMOTION_COLOR_NERVOUS;
+    }
+    else if (alive) {
+      // regular Heartrate -> confirm fear
+    }
+  }
+}

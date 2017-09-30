@@ -1,3 +1,4 @@
+/*Emotion Levels Percentage No Movement*/
 #define EMOTION_NOM_LEVEL_0       10  // Depression (Value is Percent of interval max - min)
 #define EMOTION_NOM_LEVEL_1       20  // Pessimistic
 #define EMOTION_NOM_LEVEL_2       25  // Fragile
@@ -16,6 +17,7 @@
 #define EMOTION_NOM_LEVEL_15      90  // Rage
 #define EMOTION_NOM_LEVEL_16      100 // Fear 
 
+/*Emotion Levels Percentage During Movement*/
 #define EMOTION_MOVE_LOWER_LIMIT   30
 #define EMOTION_MOVE_LEVEL_0       30  // Depression (Value is Percent of interval max - min)
 #define EMOTION_MOVE_LEVEL_1       32.5  // Pessimistic
